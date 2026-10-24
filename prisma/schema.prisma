@@ -1,0 +1,149 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------
+// USER
+// ------------------------------------------------------
+model User {
+  id            String    @id @default(cuid())
+  username      String?
+  name          String?
+  email         String    @unique
+  password      String?
+  role          String    @default("customer") // customer | booster | manager | admin
+  walletBalance Float     @default(0.0)
+  emailVerified Boolean   @default(false)
+  googleId      String?   @unique
+  discordId     String?   @unique
+  avatar        String?
+  country       String?
+  createdAt     DateTime  @default(now())
+
+  // Relations
+  orders              Order[]              @relation("CustomerOrders")
+  boosterOrders       Order[]              @relation("BoosterOrders")
+  transactions        Transaction[]
+  boosterApplications BoosterApplication[]
+  payouts             Payout[]
+  paymentMethods      PaymentMethod[]
+  topUpRequests       TopUpRequest[]
+}
+
+// ------------------------------------------------------
+// ORDER
+// ------------------------------------------------------
+model Order {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation("CustomerOrders", fields: [userId], references: [id])
+  
+  boosterId     String?
+  booster       User?     @relation("BoosterOrders", fields: [boosterId], references: [id])
+  
+  game          String
+  currentRank   String
+  desiredRank   String
+  price         Float
+  status        String    @default("pending") // pending | in_progress | completed
+  paidWithWallet Boolean  @default(false)
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+}
+
+// ------------------------------------------------------
+// TRANSACTION (Stripe Top-up)
+// ------------------------------------------------------
+model Transaction {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  amount          Float
+  type            String   // top-up | payout
+  stripeSessionId String   @unique
+  createdAt       DateTime @default(now())
+}
+
+// ------------------------------------------------------
+// BOOSTER APPLICATION
+// ------------------------------------------------------
+model BoosterApplication {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  fullName   String
+  game       String
+  rank       String
+  proofLink  String
+  experience String
+  status     String   @default("pending") // pending | approved | rejected
+  createdAt  DateTime @default(now())
+}
+
+// ------------------------------------------------------
+// PAYOUT REQUEST
+// ------------------------------------------------------
+model Payout {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  amount    Float
+  method    String
+  status    String   @default("pending") // pending | completed | rejected
+  createdAt DateTime @default(now())
+}
+
+// ------------------------------------------------------
+// PAYMENT METHOD (For Booster Payouts)
+// ------------------------------------------------------
+model PaymentMethod {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  walletName String
+  account    String
+  createdAt  DateTime @default(now())
+}
+
+// ------------------------------------------------------
+// TOP UP REQUEST (Alternative to Stripe)
+// ------------------------------------------------------
+model TopUpRequest {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  amount    Float
+  method    String
+  email     String
+  status    String   @default("pending") // pending | approved | rejected
+  createdAt DateTime @default(now())
+}
+
+// ------------------------------------------------------
+// SUPPORT TICKET & CHAT
+// ------------------------------------------------------
+model SupportTicket {
+  id        String          @id @default(cuid())
+  name      String          @default("Anonymous")
+  email     String          @default("No email")
+  message   String
+  reply     String?
+  status    String          @default("unread") // unread | open | replied
+  createdAt DateTime        @default(now())
+  
+  messages  TicketMessage[]
+}
+
+model TicketMessage {
+  id        String        @id @default(cuid())
+  ticketId  String
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  sender    String        // 'customer' wala 'admin'
+  text      String
+  createdAt DateTime      @default(now())
+}
